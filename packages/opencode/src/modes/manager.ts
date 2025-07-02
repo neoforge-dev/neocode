@@ -194,25 +194,28 @@ export class DefaultModeManager implements ModeManager {
   }
 }
 
-// Singleton instance for application-wide use
-let globalModeManager: DefaultModeManager | null = null
+// Session-aware manager instances
+const sessionManagers: Map<string, DefaultModeManager> = new Map()
 
 export async function getModeManager(
   sessionId?: string,
 ): Promise<DefaultModeManager> {
-  if (!globalModeManager) {
-    const dbPath = process.env["OPENCODE_DB_PATH"] || ":memory:"
-    globalModeManager = new DefaultModeManager(new SQLiteModeStorage(dbPath))
-
-    if (sessionId) {
-      await globalModeManager.initialize(sessionId)
-    }
+  if (!sessionId) {
+    throw new Error("sessionId is required for mode manager")
   }
 
-  return globalModeManager
+  let manager = sessionManagers.get(sessionId)
+  if (!manager) {
+    const dbPath = process.env["OPENCODE_DB_PATH"] || ":memory:"
+    manager = new DefaultModeManager(new SQLiteModeStorage(dbPath))
+    await manager.initialize(sessionId)
+    sessionManagers.set(sessionId, manager)
+  }
+
+  return manager
 }
 
 // Test helper to reset singleton
 export function resetModeManager(): void {
-  globalModeManager = null
+  sessionManagers.clear()
 }

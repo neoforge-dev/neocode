@@ -199,29 +199,38 @@ describe("ModeAwarePromptProcessor", () => {
 
 describe("Mode System Integration", () => {
   test("should persist mode across sessions", async () => {
-    // Create first manager and switch mode
-    const storage1 = new SQLiteModeStorage(":memory:")
-    await storage1.initialize()
-    const manager1 = new DefaultModeManager(storage1)
-    await manager1.initialize("persistent-session")
+    // Create temporary file for testing persistence
+    const tempDb = "/tmp/test-mode-persistence.db"
 
-    await manager1.switchMode("plan", "User preference")
-    expect(manager1.getCurrentMode()).toBe("plan")
+    try {
+      // Create first manager and switch mode
+      const storage1 = new SQLiteModeStorage(tempDb)
+      await storage1.initialize()
+      const manager1 = new DefaultModeManager(storage1)
+      await manager1.initialize("persistent-session")
 
-    // Close first manager
-    await manager1.close()
+      await manager1.switchMode("plan", "User preference")
+      expect(manager1.getCurrentMode()).toBe("plan")
 
-    // Create second manager with same storage
-    const storage2 = new SQLiteModeStorage(":memory:")
-    await storage2.initialize()
-    const manager2 = new DefaultModeManager(storage2)
-    await manager2.initialize("persistent-session")
+      // Close first manager
+      await manager1.close()
 
-    // Note: In this test, we're using :memory: so persistence won't work
-    // In real usage with file path, the mode would persist
-    expect(manager2.getCurrentMode()).toBe("code") // Default for new session
+      // Create second manager with same storage file
+      const storage2 = new SQLiteModeStorage(tempDb)
+      await storage2.initialize()
+      const manager2 = new DefaultModeManager(storage2)
+      await manager2.initialize("persistent-session")
 
-    await manager2.close()
+      // Mode should persist across sessions
+      expect(manager2.getCurrentMode()).toBe("plan")
+
+      await manager2.close()
+    } finally {
+      // Cleanup temp file
+      try {
+        await Bun.write(tempDb, "")
+      } catch {}
+    }
   })
 
   test("should handle multiple sessions independently", async () => {
